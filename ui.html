@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Data Viewer</title>
+        <style>
+            @keyframes fadeAnimation {
+                to {
+                    background-color: transparent;
+                }
+            }
+            .fade {
+                animation-name: fadeAnimation;
+                animation-duration: 500ms;
+                animation-timing-function: ease-in-out;
+                animation-fill-mode: forwards;
+            }
+
+            .cell {
+                border: 1px solid black;
+                width: 70px;
+                height: 20px;
+                padding: 4px;
+                display: inline-block;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Data Viewer v0.1</h1>
+        <h3>Data changer:</h3>
+        <form action="/update" id="change_column">
+            <select name="column" id="column">
+            </select>
+            <button type="submit">Change column data</button>
+        </form>
+        <br>
+        <h3>Data stream:</h3>
+        <div id='result'>
+        </div>
+        <script>
+            /* connecting to websockets */
+            let protocol = location.protocol === 'http:' ? 'ws:' : 'wss:';
+            var url = `${protocol}//${location.host}/ws`;
+            var ws = new WebSocket(url);
+
+            ws.onmessage = function(event) {
+                var columns = []
+                var wsData = JSON.parse(event.data);
+                var data = [];
+                for (var key in wsData) {
+                    var column = wsData[key];
+                    columns.push(key)
+                  if(data.length === 0) {
+                    data.push([]);
+                  }
+                  data[0].push(key);
+
+                  var index = 1;
+                  for (var keyCol in column) {
+                    if(index + 1 > data.length) {
+                      data.push([]);
+                    }
+
+                    var num = column[keyCol];
+                    data[index].push(num);
+                    index += 1;
+                  }
+                }
+
+                /* Building select*/
+                var selectDom = document.getElementById('column');
+                columns.forEach(column => {
+                    var id = column;
+                    if(document.getElementById(id) == null){
+                        var option = document.createElement('option')
+                        option.id = id
+                        option.value = column
+                        option.innerText = column
+                        selectDom.appendChild(option);
+                    }
+                })
+
+                /* Building table of content */
+                var divResult = document.getElementById('result');
+                console.log('data', data);
+                data.forEach((rowData, i) => {
+                    var rowId = `row_${i}`
+                    var row = document.getElementById(rowId);
+                    if(row == null) {
+                        row = document.createElement('div');
+                        row.id = rowId;
+                        divResult.appendChild(row);
+                    }
+
+                    rowData.forEach((num, j) => {
+                        var cellId = `cell_${i}_${j}`;
+                        var cell = document.getElementById(cellId);
+                        var diff = 0;
+
+                        if (cell == null) {
+                            cell = document.createElement('div');
+                            cell.id = cellId;
+                            cell.classList.add('cell', 'fade');
+                            row.appendChild(cell);
+                        } else {
+                            diff = num - parseInt(cell.innerHTML);
+                        }
+
+                        if (diff != 0 && i != 0) {
+                            if(diff > 0) {
+                                cell.style.backgroundColor = 'green';
+                            } else {
+                                cell.style.backgroundColor = 'red';
+                            }
+
+                           cell.style.animation = 'none';
+                           cell.offsetHeight; /* trigger reflow */
+                           cell.style.animation = null;
+                        }
+                        cell.innerText = num;
+                    })
+                });
+            };
+
+            /* Sending update form */
+            var form = document.getElementById('change_column');
+            form.onsubmit = submitForm
+            function submitForm(event) {
+                const formData = new FormData(form)
+                fetch(form.action, {
+                    method: 'post',
+                    body: formData,
+                })
+                event.preventDefault()
+
+                return false
+            }
+        </script>
+    </body>
+</html>
